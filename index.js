@@ -4,15 +4,42 @@ Primary file for API
 
 //Dependencies
 const http = require('http')
+const https = require('https')
+const { type } = require('os')
 const { StringDecoder } = require('string_decoder')
 const url = require('url')
 const stringDecorder = require('string_decoder').StringDecoder
+const config = require('./config')
+const fs = require('fs')
 
 // Server Operations
 
-// 1) Respond to all requests
-const server = http.createServer(function(req, res) {
+// Instantiate the HTTP server
+const httpServer = http.createServer(function(req, res) {
+    umbrellaServer(req, res)
+})
 
+// Start the HTTP server
+httpServer.listen(config.httpPort, function() {
+    console.log(`The server is listening on port ${config.httpPort} in the ${config.envName} environment`)
+})
+
+// Instantiate the HTTP server
+httpsServerOptions = {
+    key: fs.readFileSync('./https/key.pem'),
+    cert: fs.readFileSync('./https/cert.pem')
+}
+const httpsServer = https.createServer(httpsServerOptions, function(req, res) {
+    umbrellaServer(req, res)
+})
+
+// Start the HTTPS server
+httpsServer.listen(config.httpsPort, function() {
+    console.log(`The server is listening on port ${config.httpsPort} in the ${config.envName} environment`)
+})
+
+// Umbrella Server
+const umbrellaServer = function(req, res) {
     // Get the URL and parse it
     const parsedUrl = url.parse(req.url, true)
 
@@ -38,21 +65,53 @@ const server = http.createServer(function(req, res) {
     req.on('end', function() {
         buffer += decoder.end()
 
-        // Send the response
-        res.end('Hello World')
+        // Choose the handler this requests go to
+        // If not found use the notFound handler
+        let chosenHandler = typeof(router[trimmedPath]) !== 'undefined' ? router[trimmedPath] : handlers.notFound
 
-        // Logs
-        console.log('\n---XXX---NEW REQUEST---XXX---')
-        console.log(`Trimmed Path: ${trimmedPath}`)
-        console.log(`Method: ${method}`)
-        console.log('Parameters: ',queryStringObject)
-        console.log('Headers: ',headers)
-        console.log('Payload: ',buffer)
-        console.log('---XXX---END REQUEST---XXX---\n')
+        const data = {
+            trimmedPath: trimmedPath,
+            queryStringObject: queryStringObject,
+            method: method,
+            headers: headers,
+            payload: buffer
+        }
+
+        // Route the request to the specified handler
+        chosenHandler(data, function(statusCode, payload) {
+            // Use status code called back by the handler or default to 200
+            statusCode = typeof(statusCode) == 'number' ? statusCode : 200
+
+            // Use the payload called back by handler or default to an empty object
+            payload = typeof(payload) == 'object' ? payload : {}
+
+            // Convert the payload to a string
+            const payloadString = JSON.stringify(payload)
+
+            // Return the response
+            res.setHeader('Content-Type','application/json')
+            res.writeHead(statusCode)
+            res.end(payloadString)
+
+            // Logs
+            console.log('Response: ', statusCode, payloadString)
+        })
     })
-})
+}
 
-// 2) Start the server and listen on PORT 3000
-server.listen(3000, function() {
-    console.log('The server is listening on port 3000')
-})
+// Define handlers
+let handlers = {}
+
+// Ping handler
+handlers.ping = function(data, callback) {
+    callback(200)
+}
+//Not found handler
+handlers.notFound = function(data, callback) {
+    callback(404)
+}
+
+// Define a router
+const router  = {
+    'ping': handlers.ping
+}
