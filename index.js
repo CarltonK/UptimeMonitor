@@ -5,12 +5,12 @@ Primary file for API
 //Dependencies
 const http = require('http')
 const https = require('https')
-const { type } = require('os')
-const { StringDecoder } = require('string_decoder')
 const url = require('url')
-const stringDecorder = require('string_decoder').StringDecoder
-const config = require('./config')
+const StringDecoder = require('string_decoder').StringDecoder
+const config = require('./lib/config')
 const fs = require('fs')
+const handlers = require('./lib/handlers')
+const helpers = require('./lib/helpers')
 
 // Server Operations
 
@@ -48,7 +48,7 @@ const umbrellaServer = function(req, res) {
     const trimmedPath = path.replace(/^\/+|\/+$/g,'')
 
     // Get the HTTP Method
-    const method = req.method.toUpperCase()
+    const method = req.method.toLowerCase()
 
     // Get the query string as an object
     const queryStringObject = parsedUrl.query
@@ -74,7 +74,7 @@ const umbrellaServer = function(req, res) {
             queryStringObject: queryStringObject,
             method: method,
             headers: headers,
-            payload: buffer
+            payload: helpers.parseJsonToObject(buffer)
         }
 
         // Route the request to the specified handler
@@ -99,19 +99,8 @@ const umbrellaServer = function(req, res) {
     })
 }
 
-// Define handlers
-let handlers = {}
-
-// Ping handler
-handlers.ping = function(data, callback) {
-    callback(200)
-}
-//Not found handler
-handlers.notFound = function(data, callback) {
-    callback(404)
-}
-
 // Define a router
 const router  = {
-    'ping': handlers.ping
+    'ping': handlers.ping,
+    'users': handlers.users,
 }
